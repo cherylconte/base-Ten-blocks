@@ -125,18 +125,19 @@ function createBlock(type){
 
 // --- Auto place block in correct column ---
 function autoPlaceBlock(block){
+  if(columns.length===0) return;
+  let targetCol = null;
   const mode = boardModeSelect.value;
-  if(mode==='blank' || columns.length===0) return;
 
-  let targetColIndex;
-  if(block.dataset.type === 'unit') targetColIndex = columns.length-1;        // Ones
-  else if(block.dataset.type === 'rod') targetColIndex = columns.length-2;   // Tens
-  else if(block.dataset.type === 'flat' && columns.length===3) targetColIndex = 0; // Hundreds
-
-  if(targetColIndex !== undefined){
-    const col = columns[targetColIndex];
-    snapToSpecificColumn(block, col);
+  // Find column by label text
+  for(let col of columns){
+    const label = col.element.querySelector('.column-label').innerText.toLowerCase();
+    if(block.dataset.type==='unit' && label==='ones'){ targetCol = col; break; }
+    else if(block.dataset.type==='rod' && label==='tens'){ targetCol = col; break; }
+    else if(block.dataset.type==='flat' && label==='hundreds'){ targetCol = col; break; }
   }
+
+  if(targetCol) snapToSpecificColumn(block,targetCol);
 }
 
 // --- Make draggable ---
@@ -181,7 +182,7 @@ function startDrag(e){
   document.addEventListener('touchend',up);
 }
 
-// --- Snap block to column based on type ---
+// --- Snap block to column ---
 function snapToColumn(block){
   if(columns.length===0) return;
 
@@ -204,7 +205,7 @@ function snapToSpecificColumn(block, col){
   const padding = 5;
 
   if(block.dataset.type === 'unit'){
-    block.style.left = col.center - block.offsetWidth/2 + 10 + 'px'; // slightly left of center
+    block.style.left = col.center - block.offsetWidth/2 + 10 + 'px';
     block.style.top = col.stackHeight + labelHeight + padding + 'px';
     col.stackHeight += block.offsetHeight + padding;
 
@@ -233,8 +234,8 @@ function snapToSpecificColumn(block, col){
   } else if(block.dataset.type === 'flat'){
     if(!col.gridStacks) col.gridStacks = {row:0, col:0};
     let gs = col.gridStacks;
-    block.style.left = col.center - (block.offsetWidth+padding)/2 + gs.col*(block.offsetWidth+padding) + 'px';
-    block.style.top = labelHeight + padding + gs.row*(block.offsetHeight+padding) + 'px';
+    block.style.left = col.element.getBoundingClientRect().left - board.getBoundingClientRect().left + gs.col*(block.offsetWidth + padding) + 'px';
+    block.style.top = labelHeight + padding + gs.row*(block.offsetHeight + padding) + 'px';
     gs.col++;
     if(gs.col>=2){ gs.col=0; gs.row++; }
   }
@@ -300,3 +301,4 @@ document.getElementById('reset').click();
 
 </body>
 </html>
+
