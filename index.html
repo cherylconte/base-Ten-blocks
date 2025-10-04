@@ -127,11 +127,10 @@ function createBlock(type){
 function autoPlaceBlock(block){
   if(columns.length===0) return;
   let targetCol = null;
-  const mode = boardModeSelect.value;
 
   // Find column by label text
   for(let col of columns){
-    const label = col.element.querySelector('.column-label').innerText.toLowerCase();
+    const label = col.element.querySelector('.column-label').innerText.trim().toLowerCase();
     if(block.dataset.type==='unit' && label==='ones'){ targetCol = col; break; }
     else if(block.dataset.type==='rod' && label==='tens'){ targetCol = col; break; }
     else if(block.dataset.type==='flat' && label==='hundreds'){ targetCol = col; break; }
@@ -200,19 +199,22 @@ function snapToColumn(block){
   snapToSpecificColumn(block, closest);
 }
 
+// --- Snap to a specific column ---
 function snapToSpecificColumn(block, col){
   const labelHeight = col.element.querySelector('.column-label').offsetHeight;
   const padding = 5;
 
   if(block.dataset.type === 'unit'){
-    block.style.left = col.center - block.offsetWidth/2 + 10 + 'px';
-    block.style.top = col.stackHeight + labelHeight + padding + 'px';
-    col.stackHeight += block.offsetHeight + padding;
+    if(!col.onesStacks) col.onesStacks=[0]; // initialize first column
+    let colIndex = col.onesStacks.length - 1;
+    let count = col.onesStacks[colIndex];
 
-    if(col.stackHeight > (block.offsetHeight + padding)*10){
-      col.stackHeight = labelHeight + padding;
-      col.center += 30; 
-    }
+    const leftOffset = col.center - block.offsetWidth/2 - 10 + colIndex*30; // shift new column slightly
+    block.style.left = leftOffset + 'px';
+    block.style.top = labelHeight + padding + count*(block.offsetHeight + padding) + 'px';
+
+    col.onesStacks[colIndex]++;
+    if(col.onesStacks[colIndex]>=10) col.onesStacks.push(0); // start new column
 
   } else if(block.dataset.type === 'rod'){
     if(!col.rowStacks) col.rowStacks = [];
@@ -226,7 +228,7 @@ function snapToSpecificColumn(block, col){
       rowCount = 0;
     }
 
-    const leftOffset = col.center - 100 + 25; // shift tens slightly right for centering
+    const leftOffset = col.center - 100 + 25; // shift tens slightly right
     block.style.left = leftOffset + (rowCount*(block.offsetWidth+padding)) + 'px';
     block.style.top = labelHeight + padding + (currentRow*(block.offsetHeight+padding)) + 'px';
     col.rowStacks[currentRow]++;
@@ -243,7 +245,7 @@ function snapToSpecificColumn(block, col){
   board.appendChild(block);
 }
 
-// --- Setup columns ---
+// --- Create columns ---
 function setupColumns(){
   board.innerHTML='';
   columns=[];
@@ -251,17 +253,16 @@ function setupColumns(){
   if(mode==='blank') return;
 
   const labels = mode==='ones_tens' ? ['Tens','Ones'] : ['Hundreds','Tens','Ones'];
-
-  labels.forEach(labelText=>{
+  for(let lbl of labels){
     let col = document.createElement('div');
     col.classList.add('column');
     let label = document.createElement('div');
     label.classList.add('column-label');
-    label.innerText = labelText;
+    label.innerText = lbl;
     col.appendChild(label);
     board.appendChild(col);
     columns.push({element:col, center:0, stackHeight:0});
-  });
+  }
 
   setTimeout(()=>{
     const boardRect = board.getBoundingClientRect();
@@ -269,7 +270,6 @@ function setupColumns(){
     for(let i=0;i<colDivs.length;i++){
       let r = colDivs[i].getBoundingClientRect();
       columns[i].center = r.left + r.width/2 - boardRect.left;
-      columns[i].stackHeight = 0;
     }
   },50);
 }
@@ -285,9 +285,9 @@ document.getElementById('reset').addEventListener('click',()=>{
     counters[type].forEach(b=>b.remove());
     counters[type]=[];
   }
-  const startCounts = {unit:50, rod:20, flat:10};
   for(let type in piles){
-    for(let i=0;i<startCounts[type];i++) createBlock(type);
+    let startCount = type==='unit'?50:type==='rod'?20:10;
+    for(let i=0;i<startCount;i++) createBlock(type);
   }
   setupColumns();
 });
