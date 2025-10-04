@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Base 10 Blocks with Place Value Chart</title>
+<style>
+body { font-family: Arial, sans-serif; margin:0; padding:0; display:flex; flex-direction:column; align-items:center; }
+h2 { margin:10px; }
+#controls { margin:10px; display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
+button, select, input { font-size:14px; padding:5px; }
+#topPiles { display:flex; justify-content:center; gap:50px; margin-top:10px; height:250px; }
+.pile { width:100px; height:250px; position:relative; display:flex; flex-direction:column-reverse; align-items:center; justify-content:flex-start; }
+
+#board { 
+  width:90vw; 
+  height:60vh; 
+  border:2px solid #333; 
+  margin-top:20px; 
+  position:relative; 
+  overflow:hidden; 
+  background:#fff;
+  display:flex; 
+  justify-content:center; 
+}
+
+.column { 
+  border-left:0.5px solid #333;
+  flex:1; 
+  position:relative; 
+  display:flex; 
+  flex-direction:column-reverse; 
+  align-items:center; 
+}
+.column:first-child { border-left:none; }
+
+.column-label {
+  position:absolute;
+  top:0px;
+  width:100%;
+  text-align:center;
+  font-weight:bold;
+  color:#333;
+  pointer-events:none;
+  background:white;
+  height:30px;
+  line-height:30px;
+}
+
+.block { position:absolute; cursor:grab; display:flex; justify-content:center; align-items:center; user-select:none; touch-action:none; transition:transform 0.1s; }
+
+.unit { width:20px; height:20px; background:#00b0f0; transform-style:preserve-3d; }
+.rod { width:20px; height:200px; background:#00b0f0; transform-style:preserve-3d; }
+.flat { width:200px; height:200px; background:#00b0f0; transform-style:preserve-3d; }
+
+.block::before {
+  content:'';
+  position:absolute; top:0; left:0; width:100%; height:100%;
+  box-shadow: inset -5px -5px 10px rgba(0,0,0,0.3);
+  border:0.5px solid #555;
+  border-radius:3px;
+}
+</style>
+</head>
+<body>
+
+<h2>Interactive Base 10 Blocks with Place Value Chart</h2>
+
+<div id="controls">
+  <label>Unit Color: <input type="color" id="colorUnit" value="#00b0f0"></label>
+  <label>Rod Color: <input type="color" id="colorRod" value="#00b0f0"></label>
+  <label>Flat Color: <input type="color" id="colorFlat" value="#00b0f0"></label>
+  
+  <label>Board Mode: 
+    <select id="boardMode">
+      <option value="blank">Blank Board</option>
+      <option value="ones_tens">Place Value Chart: Ones/Tens</option>
+      <option value="ones_tens_hundreds">Place Value Chart: Ones/Tens/Hundreds</option>
+    </select>
+  </label>
+  
+  <button id="addUnit">Add Unit</button>
+  <button id="addRod">Add Rod</button>
+  <button id="addFlat">Add Flat</button>
+  <button id="reset">Reset</button>
+</div>
+
+<div id="topPiles">
+  <div id="pileUnit" class="pile"></div>
+  <div id="pileRod" class="pile"></div>
+  <div id="pileFlat" class="pile"></div>
+</div>
+
+<div id="board"></div>
+
+<script>
+const board = document.getElementById('board');
+const piles = {
+  unit: document.getElementById('pileUnit'),
+  rod: document.getElementById('pileRod'),
+  flat: document.getElementById('pileFlat')
+};
+const counters = {unit:[], rod:[], flat:[]};
+const boardModeSelect = document.getElementById('boardMode');
+let columns = [];
+
+// --- Capitalize helper ---
+function capitalize(str){ return str.charAt(0).toUpperCase()+str.slice(1); }
+
+// --- Create a block ---
+function createBlock(type){
+  let block = document.createElement('div');
+  block.classList.add('block', type);
+  block.dataset.type = type;
+  block.style.background = document.getElementById('color'+capitalize(type)).value;
+  block.style.left = '0px';
+  block.style.bottom = '0px';
+  makeDraggable(block);
+  piles[type].appendChild(block);
+  counters[type].push(block);
+
+  // click to auto-place without removing drag functionality
+  block.addEventListener('click', ()=>autoPlaceBlock(block));
+}
+
+// --- Auto place block in correct column ---
+function autoPlaceBlock(block){
+  const mode = boardModeSelect.value;
+  if(mode==='blank' || columns.length===0) return;
+
+  let targetColIndex;
+  if(block.dataset.type === 'unit') targetColIndex = columns.length-1;        // Ones
+  else if(block.dataset.type === 'rod') targetColIndex = columns.length-2;   // Tens
+  else if(block.dataset.type === 'flat' && columns.length===3) targetColIndex = 0; // Hundreds
+
+  if(targetColIndex !== undefined){
+    const col = columns[targetColIndex];
+    snapToSpecificColumn(block, col);
+  }
+}
+
+// --- Make draggable ---
+function makeDraggable(block){
+  block.addEventListener('mousedown', startDrag);
+  block.addEventListener('touchstart', startDrag);
+}
+
+function startDrag(e){
+  e.preventDefault();
+  const block = e.target;
+  let offsetX, offsetY;
+  if(e.touches){
+    offsetX = e.touches[0].clientX - block.getBoundingClientRect().left;
+    offsetY = e.touches[0].clientY - block.getBoundingClientRect().top;
+  } else {
+    offsetX = e.clientX - block.getBoundingClientRect().left;
+    offsetY = e.clientY - block.getBoundingClientRect().top;
+  }
+  block.style.position='absolute';
+  block.style.zIndex='1000';
+  document.body.appendChild(block);
+
+  function move(e){
+    let clientX = e.touches?e.touches[0].clientX:e.clientX;
+    let clientY = e.touches?e.touches[0].clientY:e.clientY;
+    block.style.left = (clientX - offsetX) + 'px';
+    block.style.top = (clientY - offsetY) + 'px';
+  }
+
+  function up(){
+    document.removeEventListener('mousemove',move);
+    document.removeEventListener('mouseup',up);
+    document.removeEventListener('touchmove',move);
+    document.removeEventListener('touchend',up);
+    snapToColumn(block);
+  }
+
+  document.addEventListener('mousemove',move);
+  document.addEventListener('mouseup',up);
+  document.addEventListener('touchmove',move);
+  document.addEventListener('touchend',up);
+}
+
+// --- Snap block to column based on type ---
+function snapToColumn(block){
+  if(columns.length===0) return;
+
+  const boardRect = board.getBoundingClientRect();
+  const blockRect = block.getBoundingClientRect();
+  const xCenter = blockRect.left + blockRect.width/2 - boardRect.left;
+
+  // choose closest column
+  let closest = columns[0];
+  let minDist = Math.abs(xCenter - columns[0].center);
+  for(let c of columns){
+    let dist = Math.abs(xCenter - c.center);
+    if(dist < minDist){ minDist = dist; closest = c; }
+  }
+  snapToSpecificColumn(block, closest);
+}
+
+function snapToSpecificColumn(block, col){
+  const labelHeight = col.element.querySelector('.column-label').offsetHeight;
+  const padding = 5;
+
+  if(block.dataset.type === 'unit'){
+    block.style.left = col.center - block.offsetWidth/2 + 10 + 'px'; // slightly left of center
+    block.style.top = col.stackHeight + labelHeight + padding + 'px';
+    col.stackHeight += block.offsetHeight + padding;
+
+    if(col.stackHeight > (block.offsetHeight + padding)*10){
+      col.stackHeight = labelHeight + padding;
+      col.center += 30; 
+    }
+
+  } else if(block.dataset.type === 'rod'){
+    if(!col.rowStacks) col.rowStacks = [];
+    if(col.rowStacks.length===0) col.rowStacks.push(0);
+    let currentRow = col.rowStacks.length-1;
+    let rowCount = col.rowStacks[currentRow];
+
+    if(rowCount >= 10){
+      col.rowStacks.push(0);
+      currentRow++;
+      rowCount = 0;
+    }
+
+    const leftOffset = col.center - 100 + 25; // shift tens slightly right for centering
+    block.style.left = leftOffset + (rowCount*(block.offsetWidth+padding)) + 'px';
+    block.style.top = labelHeight + padding + (currentRow*(block.offsetHeight+padding)) + 'px';
+    col.rowStacks[currentRow]++;
+
+  } else if(block.dataset.type === 'flat'){
+    if(!col.gridStacks) col.gridStacks = {row:0, col:0};
+    let gs = col.gridStacks;
+    block.style.left = col.center - (block.offsetWidth+padding)/2 + gs.col*(block.offsetWidth+padding) + 'px';
+    block.style.top = labelHeight + padding + gs.row*(block.offsetHeight+padding) + 'px';
+    gs.col++;
+    if(gs.col>=2){ gs.col=0; gs.row++; }
+  }
+
+  board.appendChild(block);
+}
+
+// --- Setup columns ---
+function setupColumns(){
+  board.innerHTML='';
+  columns=[];
+  const mode = boardModeSelect.value;
+  if(mode==='blank') return;
+
+  const labels = mode==='ones_tens' ? ['Tens','Ones'] : ['Hundreds','Tens','Ones'];
+
+  labels.forEach(labelText=>{
+    let col = document.createElement('div');
+    col.classList.add('column');
+    let label = document.createElement('div');
+    label.classList.add('column-label');
+    label.innerText = labelText;
+    col.appendChild(label);
+    board.appendChild(col);
+    columns.push({element:col, center:0, stackHeight:0});
+  });
+
+  setTimeout(()=>{
+    const boardRect = board.getBoundingClientRect();
+    const colDivs = board.children;
+    for(let i=0;i<colDivs.length;i++){
+      let r = colDivs[i].getBoundingClientRect();
+      columns[i].center = r.left + r.width/2 - boardRect.left;
+      columns[i].stackHeight = 0;
+    }
+  },50);
+}
+
+// --- Add blocks ---
+document.getElementById('addUnit').addEventListener('click',()=>createBlock('unit'));
+document.getElementById('addRod').addEventListener('click',()=>createBlock('rod'));
+document.getElementById('addFlat').addEventListener('click',()=>createBlock('flat'));
+
+// --- Reset ---
+document.getElementById('reset').addEventListener('click',()=>{
+  for(let type in counters){
+    counters[type].forEach(b=>b.remove());
+    counters[type]=[];
+  }
+  const startCounts = {unit:50, rod:20, flat:10};
+  for(let type in piles){
+    for(let i=0;i<startCounts[type];i++) createBlock(type);
+  }
+  setupColumns();
+});
+
+// --- Board mode change ---
+boardModeSelect.addEventListener('change',setupColumns);
+
+// --- Initialize ---
+document.getElementById('reset').click();
+</script>
+
+</body>
+</html>
