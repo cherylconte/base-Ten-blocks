@@ -128,16 +128,19 @@ function autoPlaceBlock(block){
   if(columns.length===0) return;
   let targetCol = null;
 
-  // Find column by label text
-  for(let col of columns){
-    const label = col.element.querySelector('.column-label').innerText.trim().toLowerCase();
-    if(block.dataset.type==='unit' && label==='ones'){ targetCol = col; break; }
-    else if(block.dataset.type==='rod' && label==='tens'){ targetCol = col; break; }
-    else if(block.dataset.type==='flat' && label==='hundreds'){ targetCol = col; break; }
-  }
+  // Map block type to column index
+  const mode = boardModeSelect.value;
+  if(mode==='ones_tens'){
+    targetCol = block.dataset.type==='unit' ? columns[1] : columns[0]; // Ones = index 1, Tens = index 0
+  } else if(mode==='ones_tens_hundreds'){
+    if(block.dataset.type==='unit') targetCol = columns[2];     // Ones
+    else if(block.dataset.type==='rod') targetCol = columns[1]; // Tens
+    else if(block.dataset.type==='flat') targetCol = columns[0];// Hundreds
+  } else return; // blank mode, do nothing
 
-  if(targetCol) snapToSpecificColumn(block,targetCol);
+  if(targetCol) snapToSpecificColumn(block, targetCol);
 }
+
 
 // --- Make draggable ---
 function makeDraggable(block){
